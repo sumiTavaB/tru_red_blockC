@@ -1,0 +1,42 @@
+//This code is an implementation of Public-Key Encryption in the presence of an active attacker. 
+attacker[active]
+principal public1[
+    generates a
+    ag = G^a
+]
+
+public1 -> public2: [ag]
+
+principal public2[
+    generates b
+    bg = G^b
+]
+
+public2 -> public1: [bg]
+
+principal public1[
+	// sk_1=bg^a
+    // knows private m1
+    generates m1
+//    ct=AEAD_ENC(sk_1, m1, ag)
+ct=PKE_ENC(bg, m1)
+]
+
+public1 -> public2: [ct]
+
+principal public2[
+	// sk_2=ag^b
+    //pt=AEAD_DEC(sk_2, ct, ag)
+pt=PKE_DEC(b, ct)
+]
+
+queries[
+    // confidentiality? sk_1
+    // confidentiality? sk_2
+    confidentiality? m1
+    confidentiality? pt
+    // confidentiality? ct
+    // authentication? ct
+    authentication? public1 -> public2: ct
+    // equivalence? sk_1, sk_2
+]

@@ -1,0 +1,29 @@
+// SPDX-FileCopyrightText: © 2019-2022 Nadim Kobeissi <nadim@symbolic.software>
+// SPDX-License-Identifier: GPL-3.0-only
+
+attacker[active]
+principal Akash[
+    generates a
+    ga = G^a
+]
+
+Akash -> Barnali: ga
+
+principal Barnali[
+  knows private m1
+    generates b
+    gb = G^b      //Public Key
+    ss_a = ga^b   //Private Key
+    e1 = AEAD_ENC(ss_a, m1, gb)
+]
+
+Barnali -> Akash: gb, e1
+principal Akash[
+  ss_b = gb^a
+  e1_dec = AEAD_DEC(ss_b, e1, gb)?
+]
+
+queries[
+  confidentiality? e1
+  confidentiality? m1
+]

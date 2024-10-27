@@ -1,0 +1,30 @@
+ attacker[active]
+ principal Server [
+ knows private s
+ gs = G^s
+ ]
+
+ principal Client[
+ knows private c
+ gc = G^c
+ generates nonce
+ ]
+
+ Client -> Server: nonce
+ principal Server[
+ proof = SIGN(s, nonce)
+ ]
+ Server -> Client: gs, proof
+ principal Client[
+ valid = SIGNVERIF(gs, nonce, proof)
+ generates attestation
+ signed = SIGN(c, attestation)
+ ]
+ Client -> Server: [gc], attestation, signed
+ principal Server[
+ storage = SIGNVERIF(gc, attestation, signed)?
+ ]
+ queries[
+ authentication? Server -> Client: proof
+ authentication? Client -> Server: signed
+ ]

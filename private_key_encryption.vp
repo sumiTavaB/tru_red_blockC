@@ -1,0 +1,37 @@
+//This code is an implementation of Private-Key Encryption. The secrets are shared using Diffie-Hellman Key Exchange in the presence of an active attacker. 
+attacker[active]
+principal public1[
+    generates a
+    ag = G^a
+
+]
+
+public1 -> public2: [ag]
+
+principal public2[
+    generates b
+    bg = G^b
+]
+
+public2 -> public1: [bg]
+
+principal public1[
+	sk_1=bg^a
+    knows private m1
+    ct=AEAD_ENC(sk_1, m1, ag)
+]
+
+public1 -> public2: ct
+
+principal public2[
+	sk_2=ag^b
+    pt=AEAD_DEC(sk_2, ct, ag)
+]
+
+queries[
+    confidentiality? sk_1
+    confidentiality? sk_2
+    confidentiality? m1
+    confidentiality? pt
+    equivalence? sk_1, sk_2
+]

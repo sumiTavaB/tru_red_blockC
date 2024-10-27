@@ -1,0 +1,53 @@
+// Define participants
+principal C, E, O, P
+
+// Define public and private keys
+free pkC, skC
+free pkE, skE
+free pkO, skO
+free pkP, skP
+
+// Client proposes a transaction
+phase 1
+    // Define transaction proposal
+    transaction_proposal = hash("transaction_data")
+    // Client signs the transaction proposal
+    signature_tp = sign(transaction_proposal, skC)
+    // Client sends the signed transaction proposal to Endorser
+    send C -> E: transaction_proposal, signature_tp
+
+// Endorser validates and endorses the transaction
+phase 2
+    // Endorser verifies the transaction proposal
+    query signature_tp : sign(transaction_proposal, skC)
+    // Endorser signs the transaction proposal
+    endorsement = sign(transaction_proposal, skE)
+    // Endorser sends the endorsement back to Client
+    send E -> C: endorsement
+
+// Client sends the endorsed transaction to Orderer
+phase 3
+    // Client sends the endorsed transaction to Orderer
+    send C -> O: transaction_proposal, endorsement, signature_tp
+
+// Orderer orders the transaction and creates a block
+phase 4
+    // Orderer creates a block
+    block = hash(transaction_proposal, endorsement, signature_tp)
+    // Orderer signs the block
+    signature_block = sign(block, skO)
+    // Orderer sends the signed block to Peer
+    send O -> P: block, signature_block
+
+// Peer verifies the block and stores it
+phase 5
+    // Peer verifies the block
+    query signature_block : sign(block, skO)
+    // Peer stores the verified block
+    verified_block = hash(block)
+    // Peer sends confirmation to Client
+    send P -> C: verified_block
+
+// Define immutability property
+queries
+    secret verified_block
