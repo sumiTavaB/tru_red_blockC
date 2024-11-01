@@ -1,10 +1,13 @@
 import java.io.*;
 import java.net.*;
+import java.util.*;
 
 class Peer {
     private String peerName;
     private int port;
     private ServerSocket serverSocket;
+    private List<Socket> connectedPeers = new ArrayList<>();
+    private boolean running = true; // To control the thread execution
 
     public Peer(String peerName, int port) {
         this.peerName = peerName;
@@ -16,90 +19,80 @@ class Peer {
         serverSocket = new ServerSocket(port);
         System.out.println(peerName + " is waiting for a connection on port " + port);
 
-        Socket clientSocket = serverSocket.accept(); // Wait for a peer to connect
-        System.out.println(peerName + " accepted a connection from " + clientSocket.getInetAddress());
-
-        // Handle the communication
-        handleCommunication(clientSocket);
+        while (running) {
+            try {
+                Socket clientSocket = serverSocket.accept(); // Wait for a peer to connect
+                connectedPeers.add(clientSocket);
+                System.out.println(peerName + " accepted a connection from " + clientSocket.getInetAddress());
+                handleCommunication(clientSocket);
+            } catch (SocketException e) {
+                // Server socket is closed, exit the loop
+                break;
+            }
+        }
     }
 
     // Connect to another peer (client mode)
     public void connectToPeer(String peerAddress, int peerPort) throws IOException {
         Socket socket = new Socket(peerAddress, peerPort);
+        connectedPeers.add(socket);
         System.out.println(peerName + " connected to peer on " + peerAddress + ":" + peerPort);
-
-        // Start communication
         handleCommunication(socket);
     }
 
     // Communication handling for both server and client roles
-    private void handleCommunication(Socket socket) throws IOException {
-        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
-        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+    private void handleCommunication(Socket socket) {
+        try {
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
-        // Create a thread to read messages from the peer
-        new Thread(() -> {
-            try {
-                String incomingMessage;
-                while ((incomingMessage = in.readLine()) != null) {
-                    // Format the received message
-                    System.out.println("\n[Received] " + peerName + ": " + incomingMessage);
-                    System.out.print(peerName + " (you): "); // Reprint the prompt for the user
+            // Create a thread to read messages from the peer
+            new Thread(() -> {
+                try {
+                    String incomingMessage;
+                    while ((incomingMessage = in.readLine()) != null) {
+                        System.out.println("\n[Received] " + peerName + ": " + incomingMessage);
+                        System.out.print(peerName + " (you): "); // Reprint the prompt for the user
+                    }
+                } catch (IOException e) {
+                    System.out.println(peerName + ": Connection closed.");
                 }
-            } catch (IOException e) {
-                System.out.println(peerName + ": Connection closed.");
-            }
-        }).start();
+            }).start();
 
-        // Continuously send messages to the connected peer
-        while (true) {
-            System.out.print(peerName + " (you): ");
-            String message = userInput.readLine();
-            if (message != null && !message.trim().isEmpty()) {
-                out.println(message); // Send the message to the peer
+            // Continuously send messages to the connected peer
+            while (running) {
+                System.out.print(peerName + " (you): ");
+                String message = userInput.readLine();
+                if (message != null && !message.trim().isEmpty()) {
+                    out.println(message); // Send the message to the peer
+                }
+            }
+        } catch (IOException e) {
+            System.out.println(peerName + ": Error in communication.");
+        } finally {
+            try {
+                socket.close(); // Close the socket when done
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        if (args.length < 1) {
-            System.out.println("Usage: java Peer <PeerName>");
-            return;
+    // Method to stop the peer
+    public void shutdown() {
+        running = false; // Stop communication loops
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close(); // Close the server socket
+            }
+            // Close all connected peer sockets
+            for (Socket socket : connectedPeers) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-
-        String peerName = args[0];
-
-        // Run Peer1 or Peer2 based on the argument
-        if (peerName.equals("Peer1")) {
-            Peer peer1 = new Peer("Peer1", 5000);
-            // Start Peer1 server
-            new Thread(() -> {
-                try {
-                    peer1.startServer(); // Peer1 acts as server
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }).start();
-
-            // Peer1 connects to Peer2 after a delay
-            Thread.sleep(2000); // Ensure Peer2 server has started
-            peer1.connectToPeer("localhost", 6000); // Connect to Peer2 on port 6000
-
-        } else if (peerName.equals("Peer2")) {
-            Peer peer2 = new Peer("Peer2", 6000);
-            // Start Peer2 server
-            new Thread(() -> {
-                try {
-                    peer2.startServer(); // Peer2 acts as server
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }).start();
-
-            // Peer2 connects to Peer1 after a delay
-            Thread.sleep(2000); // Ensure Peer1 server has started
-            peer2.connectToPeer("localhost", 5000); // Connect to Peer1 on port 5000
-        }
+        System.out.println(peerName + " has shut down.");
     }
 }
