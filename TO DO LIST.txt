@@ -1,0 +1,7 @@
+TO DO LIST
+=======================
+To Do 29/10
+-----------------
+1. Study the consensus mechanism.
+2. Develop the mapping in the network. [RUN & CHECK]
+3. A message from a node should be available to all the nodes in the network, irrecpective of whether they are the recipient or not.
