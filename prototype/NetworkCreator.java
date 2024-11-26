@@ -70,16 +70,27 @@ public class NetworkCreator {
             for (int i = 0; i < n; i++) {
                 List<Integer> connectionList = connections.get(nodes[i]);
                 for (int connIndex : connectionList) {
-                    try {
-                        // Connect to peers in the connection list
-                        peers.get(i).connectToPeer("localhost", peers.get(connIndex).getPort(), peers.get(connIndex).peerName);
-                    } catch (IOException e) {
-                        System.out.println("Error connecting " + nodes[i] + " to " + nodes[connIndex] + ": " + e.getMessage());
-                    }
+                    // try {
+                        Peer currentPeer = peers.get(i);
+                        Peer targetPeer = peers.get(connIndex);
+            
+                        // Ensure a connection is made only once
+                        if (!currentPeer.isConnectedTo(targetPeer)) {
+                            currentPeer.connectToPeer("localhost", targetPeer.getPort(), targetPeer.getPeerName());
+                            System.out.println(nodes[i] + " connected to " + nodes[connIndex]);
+                        }
+            
+                    // } catch (IOException e) {
+                    //     System.out.println("Error connecting " + nodes[i] + " to " + nodes[connIndex] + ": " + e.getMessage());
+                    // }
                 }
+            
+                // Print out the state of the current peer
                 System.out.println(peers.get(i).toString());
                 System.out.println("--------------------------------------");
             }
+            
+            
 
             // Start communication for the first peer (Peer A)
             Peer peerA = peers.get(0); // Assuming Peer A is the first one
