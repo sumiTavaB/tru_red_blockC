@@ -20,6 +20,16 @@ class Peer {
         return port;
     }
 
+    // Getter for peerName
+    public String getPeerName() {
+        return peerName;
+    }
+
+    // Setter for peerName (if not already defined)
+    public void setPeerName(String peerName) {
+        this.peerName = peerName;
+    }
+
     // Start the server for this peer
     public void startServer() throws IOException {
         serverSocket = new ServerSocket(port);
@@ -36,19 +46,32 @@ class Peer {
     }
 
     // Connect to another peer (client mode)
-    public void connectToPeer(String peerAddress, int peerPort, String peerName) throws IOException {
-        Socket socket = new Socket(peerAddress, peerPort);
-        synchronized (connectedSockets) {
-            if (!connectedSockets.contains(socket)) {
-                connectedSockets.add(socket);
-                connectedPeerNames.add(peerName);
-                System.out.println(this.peerName + " connected to peer on " + peerAddress + ":" + peerPort);
-                handleCommunication(socket);
-            } else {
-                System.out.println(this.peerName + " already has a connection to " + peerAddress + ":" + peerPort);
+    public void connectToPeer(String host, int port, String peerName) {
+        try {
+            Socket socket = new Socket(host, port);
+    
+            // Check if the socket already exists in the list
+            boolean isDuplicate = false;
+            for (Socket s : connectedSockets) {
+                if (s.getPort() == socket.getPort()) {
+                    isDuplicate = true;
+                    break;
+                }
             }
+    
+            // Only add the socket if it is not a duplicate
+            if (!isDuplicate) {
+                connectedSockets.add(socket);
+                System.out.println("Connected to peer: " + peerName + " on port " + port);
+            } else {
+                System.out.println("Duplicate connection attempt to peer: " + peerName + " on port " + port);
+            }
+    
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
+    
 
     // Communication handling for both server and client roles
     private void handleCommunication(Socket socket) {
@@ -102,6 +125,16 @@ class Peer {
                 forwardMessage(message, sender);
             }
         }
+    }
+
+    public boolean isConnectedTo(Peer targetPeer) {
+        for (Socket socket : connectedSockets) {
+            // Compare socket's remote address/port with the target peer's address/port
+            if (socket.getPort() == targetPeer.getPort()) {
+                return true; // Already connected to the target peer
+            }
+        }
+        return false; // Not connected to the target peer
     }
 
     private void forwardMessage(String message, String originalSender) {
