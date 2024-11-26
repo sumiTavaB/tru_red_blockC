@@ -9,13 +9,13 @@ class Peer {
     private List<Socket> connectedSockets = Collections.synchronizedList(new ArrayList<>());
     private boolean running = true; // To control the thread execution
     private Set<String> seenMessages = new HashSet<>();
+    private List<String> connectedPeerNames = new ArrayList<>(); // To track the peer names connected to this node
 
     public Peer(String peerName, int port) {
         this.peerName = peerName;
         this.port = port;
     }
 
-    // Getter for the port
     public int getPort() {
         return port;
     }
@@ -36,15 +36,16 @@ class Peer {
     }
 
     // Connect to another peer (client mode)
-    public void connectToPeer(String peerAddress, int peerPort) throws IOException {
+    public void connectToPeer(String peerAddress, int peerPort, String peerName) throws IOException {
         Socket socket = new Socket(peerAddress, peerPort);
         synchronized (connectedSockets) {
             if (!connectedSockets.contains(socket)) {
                 connectedSockets.add(socket);
-                System.out.println(peerName + " connected to peer on " + peerAddress + ":" + peerPort);
+                connectedPeerNames.add(peerName);
+                System.out.println(this.peerName + " connected to peer on " + peerAddress + ":" + peerPort);
                 handleCommunication(socket);
             } else {
-                System.out.println(peerName + " already has a connection to " + peerAddress + ":" + peerPort);
+                System.out.println(this.peerName + " already has a connection to " + peerAddress + ":" + peerPort);
             }
         }
     }
@@ -94,8 +95,9 @@ class Peer {
         // Check if this peer is the intended recipient
         if (recipient.equals(peerName)) {
             System.out.println(peerName + " received message: " + actualMessage);
+            shutdown(); // Terminate the network after receiving the message
         } else {
-            // Forward the message only if the sender is not this peer
+            // Forward the message only if the sender is not this peer and not already seen
             if (!sender.equals(peerName)) {
                 forwardMessage(message, sender);
             }
@@ -104,6 +106,8 @@ class Peer {
 
     private void forwardMessage(String message, String originalSender) {
         // Do not forward if the original sender is this peer
+        System.out.println(
+                "message --> " + message + " originalSender --> " + originalSender + " peerName --> " + peerName);
         if (peerName.equals(originalSender))
             return;
 
@@ -112,12 +116,15 @@ class Peer {
         System.out.println(peerName + " is forwarding the message: " + message);
 
         synchronized (connectedSockets) {
-            for (Socket socket : connectedSockets) {
-                try {
-                    PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                    out.println(message); // Forward the message
-                } catch (IOException e) {
-                    System.out.println(peerName + ": Error forwarding message.");
+            for (int i = 0; i < connectedSockets.size(); i++) {
+                String peerToForward = connectedPeerNames.get(i);
+                if (!peerToForward.equals(originalSender)) { // Do not forward to the sender
+                    try {
+                        PrintWriter out = new PrintWriter(connectedSockets.get(i).getOutputStream(), true);
+                        out.println(message); // Forward the message
+                    } catch (IOException e) {
+                        System.out.println(peerName + ": Error forwarding message.");
+                    }
                 }
             }
         }
@@ -126,11 +133,9 @@ class Peer {
     public void sendMessage(String message, List<Peer> peers, String targetPeerName) {
         boolean found = false;
         for (Peer peer : peers) {
-            System.out.println("PEER -->> " + peer.peerName + " TARGET --> " + targetPeerName);
             if (peer.peerName.equals(targetPeerName)) {
                 System.out.println(peerName + " sending message to " + targetPeerName);
-                String formattedMessage = peerName + ": " + message; // Do not include targetPeerName here
-                System.out.println("formattedMessage --> " + formattedMessage + " peerName --> " + peerName);
+                String formattedMessage = peerName + ": " + message;
                 forwardMessage(formattedMessage, peerName); // Pass the sender's name
                 found = true;
                 break;
@@ -141,7 +146,6 @@ class Peer {
         }
     }
 
-    // Method to stop the peer
     public void shutdown() {
         running = false; // Stop communication loops
         try {
