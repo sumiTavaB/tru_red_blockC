@@ -1,31 +1,22 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-<<<<<<< Updated upstream
 public class Peer implements Runnable {
     private String peerName;
     private int port;
-    private List<Socket> connectedSockets = new ArrayList<>();
-    private List<String> connectedPeerNames = new ArrayList<>();
+    private List<Socket> connectedSockets = new CopyOnWriteArrayList<>();
+    private List<String> connectedPeerNames = new CopyOnWriteArrayList<>();
     private Set<String> forwardedPeers = new HashSet<>();
     private boolean running = true;
-=======
-public class Peer {
-    private String peerName;
-    private int port;
-    private ServerSocket serverSocket;
-    private List<Socket> connections;
->>>>>>> Stashed changes
 
     // Constructor
     public Peer(String peerName, int port) {
         this.peerName = peerName;
         this.port = port;
-        this.connections = new ArrayList<>();
     }
 
-<<<<<<< Updated upstream
     // Method to start the peer and listen for incoming connections
     public void start() {
         new Thread(this).start(); // Start the peer listening thread
@@ -58,14 +49,14 @@ public class Peer {
             connectedPeerNames.add(peerName);
         }
 
-        connectedPeerNames.add(peerName);
         new Thread(new PeerHandler(socket, this)).start();
     }
 
     public boolean isConnectedTo(Peer targetPeer) {
         for (Socket socket : connectedSockets) {
             // Compare socket's remote address/port with the target peer's address/port
-            if (socket.getPort() == targetPeer.getPort()) {
+            if (socket.getPort() == targetPeer.getPort() &&
+                    socket.getInetAddress().getHostName().equals(targetPeer.peerName)) {
                 return true; // Already connected to the target peer
             }
         }
@@ -86,6 +77,7 @@ public class Peer {
 
     // Method to send messages to the target peer
     public void sendMessage(String message, List<Peer> peers, String targetPeerName) {
+        // System.out.println("5455dd --> " + peers.toString());
         boolean found = false;
         for (Peer peer : peers) {
             if (peer.peerName.equals(targetPeerName)) {
@@ -94,10 +86,8 @@ public class Peer {
 
                 // Format the message with the recipient and actual content
                 String formattedMessage = peerName + " to " + targetPeerName + ": " + message;
-
-                // Forward the message to the target peer
-                forwardMessage(formattedMessage, null, peer.peerName); // Pass null for previousSender when first
-                                                                       // sending
+                forwardedPeers.add(peerName);
+                forwardMessage(formattedMessage, peer.peerName); // Pass null for previousSender when first
                 found = true;
                 break;
             }
@@ -109,98 +99,42 @@ public class Peer {
     }
 
     // Method to forward messages to connected peers
-    private void forwardMessage(String message, String previousSender, String currentSender) {
+    private void forwardMessage(String message, String previousSender) {
         List<String> list = getConnectedPeerNames();
-        // System.out.println(list);
-        try {
+        System.out.println(peerName + " connected peers are: " + list.toString());
+        String[] parts = message.split(": ", 2);
+        if (parts.length < 2)
+            return;
+
+        String[] participants = parts[0].split(" to ", 2);
+        String sender = participants[0];
+        String receiver = participants[1];
+
+        if (!peerName.equals(receiver)) {
             for (int i = 0; i < list.size(); i++) {
                 String peer = list.get(i);
-                System.out.println(list.get(i));
-                if ((!peer.equals(previousSender)) && !peer.equals("127.0.0.1")) {
-                    PrintWriter out = new PrintWriter(connectedSockets.get(i).getOutputStream(), true);
-                    out.println(message); // Forward the message
-                    System.out.println(peerName + " forwarded the message to " + peer);
-                    forwardMessage(message, currentSender, peer);
-                } else {
-                    return;
+                System.out.println(peer + " --> "
+                        + ((!peer.equals(previousSender)) && !peer.equals(sender) && !peer.equals("127.0.0.1")
+                                && !peer.equals(peerName) && !forwardedPeers.contains(peer)));
+                if ((!peer.equals(previousSender)) && !peer.equals(sender) && !peer.equals("127.0.0.1")
+                        && !forwardedPeers.contains(peer)) {
+                    try {
+                        PrintWriter out = new PrintWriter(connectedSockets.get(i).getOutputStream(), true);
+                        out.println(message); // Forward the message
+                        forwardedPeers.add(peer); // Mark the peer as forwarded
+                        System.out.println("SENT TO --> " + peer);
+                    } catch (IOException ex) {
+                        System.out.println(ex.toString());
+                    }
                 }
             }
-        } catch (Exception ex) {
-            System.out.println(ex.toString());
+            System.out.println(Thread.currentThread().getName() + " - Forwarded peers for " + peerName + " is "
+                    + forwardedPeers.toString());
+        } else {
+            String actualMessage = parts.length > 1 ? parts[1] : "";
+            System.out.println(peerName + " received message: " + actualMessage);
+            shutdown();
         }
-        // if (peerName.equals(previousSender)) {
-        // return;
-        // }
-        // System.out.println(Thread.currentThread().getName() + " - message --> " +
-        // message + " previousSender --> "
-        // + previousSender + " peerName --> " + peerName);
-
-        // // Split the message into sender, recipient, and actual message
-        // String[] parts = message.split(": ", 2);
-        // if (parts.length < 2)
-        // return; // Invalid message format
-        // String[] participants = parts[0].split(" to ", 2); // Extract sender name
-        // String recipientAndMessage = parts[1]; // The remaining part of the message
-
-        // // Split recipient and the actual message
-        // String[] msgParts = recipientAndMessage.split(":", 2);
-        // String recipient = participants[1]; // First word is the recipient
-        // String actualMessage = msgParts.length > 1 ? msgParts[1] : ""; // Rest is the
-        // message content
-
-        // // If the message is meant for this peer, process it
-        // System.out.println(
-        // Thread.currentThread().getName() + " - recipient --> " + recipient + "
-        // peerName --> " + peerName);
-        // if (recipient.equals(peerName)) {
-        // System.out.println(
-        // Thread.currentThread().getName() + " - " + peerName + " received message: " +
-        // actualMessage);
-        // shutdown(); // Terminate the network after receiving the message
-        // return;
-        // }
-
-        // // Do not forward if the message has already been forwarded by this peer
-        // if (previousSender != null && previousSender.equals(peerName)) {
-        // return; // Skip forwarding if already forwarded by this peer
-        // }
-
-        // // Mark this peer as having forwarded the message (don't forward again)
-        // forwardedPeers.add(peerName);
-        // System.out.println(Thread.currentThread().getName() + " - CONN --> " +
-        // connectedPeerNames.toString());
-
-        // // Forward the message to all connected peers, except the sender and the
-        // // previous sender
-        // synchronized (connectedSockets) {
-        // for (int i = 0; i < connectedSockets.size(); i++) {
-        // String peerToForward = connectedPeerNames.get(i);
-
-        // // Skip 127.0.0.1 and peers already in forwardedPeers
-        // if (!peerToForward.equals("127.0.0.1") &&
-        // !forwardedPeers.contains(peerToForward)) {
-        // // Do not forward back to the peer that just sent this message or the
-        // previous
-        // // sender
-        // if (!peerToForward.equals(previousSender) &&
-        // !peerToForward.equals(recipient)) {
-        // try {
-        // PrintWriter out = new PrintWriter(connectedSockets.get(i).getOutputStream(),
-        // true);
-        // out.println(message); // Forward the message
-        // System.out.println(Thread.currentThread().getName() + " - " + peerName
-        // + " forwarded the message to " + peerToForward);
-
-        // // Pass the current peer as the previous sender for the next iteration
-        // forwardMessage(message, peerName);
-        // } catch (IOException e) {
-        // System.out.println(Thread.currentThread().getName() + " - " + peerName
-        // + ": Error forwarding message.");
-        // }
-        // }
-        // }
-        // }
-        // }
     }
 
     // Helper method to close connections and shutdown the peer
@@ -240,6 +174,11 @@ public class Peer {
             } catch (IOException e) {
                 System.out.println(Thread.currentThread().getName() + " - " + peer.peerName
                         + ": Error handling incoming message.");
+                try {
+                    socket.close(); // Close the socket in case of an error
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
             }
         }
     }
@@ -259,89 +198,12 @@ public class Peer {
 
     public List<String> getConnectedPeerNames() {
         return connectedPeerNames;
-=======
-    // Getter for peerName (ensure it's only defined once)
-    public String getPeerName() {
-        return this.peerName;
-    }
-
-    // Getter for port
-    public int getPort() {
-        return this.port;
-    }
-
-    // Method to check if the current peer is connected to another peer
-    public boolean isConnectedTo(Peer peer) {
-        for (Socket connection : connections) {
-            if (connection.getPort() == peer.getPort()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Method to connect to another peer
-    public void connectToPeer(String host, int port, String peerName) {
-        try {
-            Socket socket = new Socket(host, port);
-            connections.add(socket);
-            System.out.println("Connected to " + peerName + " on port " + port);
-        } catch (IOException e) {
-            System.out.println("Error connecting to " + peerName + ": " + e.getMessage());
-        }
-    }
-
-    // Method to start the server for this peer
-    public void startServer() throws IOException {
-        this.serverSocket = new ServerSocket(port);
-        System.out.println(peerName + " server started on port " + port);
-        new Thread(() -> {
-            while (true) {
-                try {
-                    Socket socket = serverSocket.accept();
-                    connections.add(socket);
-                    System.out.println(peerName + " accepted connection from " + socket.getInetAddress());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-    }
-
-    // Method to shutdown the peer's server
-    public void shutdown() {
-        try {
-            for (Socket socket : connections) {
-                socket.close();
-            }
-            serverSocket.close();
-            System.out.println(peerName + " is shutting down.");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // Method to send a message to another peer (for demonstration)
-    public void sendMessage(String message, List<Peer> peers, String targetPeerName) {
-        for (Peer peer : peers) {
-            System.out.println("252 ---> " + peer.toString());
-            if (peer.getPeerName().equals(targetPeerName)) {
-                System.out.println(peerName + " sending message to " + targetPeerName + ": " + message);
-                // In a real application, you'd write the message to the peer's socket output
-                // stream
-            }
-        }
->>>>>>> Stashed changes
     }
 
     @Override
     public String toString() {
-<<<<<<< Updated upstream
         return "Peer [peerName=" + peerName + ", port=" + port + ", connectedSockets=" + connectedSockets
                 + ", connectedPeerNames=" + connectedPeerNames + ", forwardedPeers=" + forwardedPeers + ", running="
                 + running + "]";
-=======
-        return "Peer{name='" + peerName + "', port=" + port + ", connections=" + connections.size() + "}";
->>>>>>> Stashed changes
     }
 }
