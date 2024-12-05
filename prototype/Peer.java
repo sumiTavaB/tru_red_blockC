@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
+<<<<<<< Updated upstream
 public class Peer implements Runnable {
     private String peerName;
     private int port;
@@ -9,13 +10,22 @@ public class Peer implements Runnable {
     private List<String> connectedPeerNames = new ArrayList<>();
     private Set<String> forwardedPeers = new HashSet<>();
     private boolean running = true;
+=======
+public class Peer {
+    private String peerName;
+    private int port;
+    private ServerSocket serverSocket;
+    private List<Socket> connections;
+>>>>>>> Stashed changes
 
     // Constructor
     public Peer(String peerName, int port) {
         this.peerName = peerName;
         this.port = port;
+        this.connections = new ArrayList<>();
     }
 
+<<<<<<< Updated upstream
     // Method to start the peer and listen for incoming connections
     public void start() {
         new Thread(this).start(); // Start the peer listening thread
@@ -249,12 +259,89 @@ public class Peer implements Runnable {
 
     public List<String> getConnectedPeerNames() {
         return connectedPeerNames;
+=======
+    // Getter for peerName (ensure it's only defined once)
+    public String getPeerName() {
+        return this.peerName;
+    }
+
+    // Getter for port
+    public int getPort() {
+        return this.port;
+    }
+
+    // Method to check if the current peer is connected to another peer
+    public boolean isConnectedTo(Peer peer) {
+        for (Socket connection : connections) {
+            if (connection.getPort() == peer.getPort()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Method to connect to another peer
+    public void connectToPeer(String host, int port, String peerName) {
+        try {
+            Socket socket = new Socket(host, port);
+            connections.add(socket);
+            System.out.println("Connected to " + peerName + " on port " + port);
+        } catch (IOException e) {
+            System.out.println("Error connecting to " + peerName + ": " + e.getMessage());
+        }
+    }
+
+    // Method to start the server for this peer
+    public void startServer() throws IOException {
+        this.serverSocket = new ServerSocket(port);
+        System.out.println(peerName + " server started on port " + port);
+        new Thread(() -> {
+            while (true) {
+                try {
+                    Socket socket = serverSocket.accept();
+                    connections.add(socket);
+                    System.out.println(peerName + " accepted connection from " + socket.getInetAddress());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    // Method to shutdown the peer's server
+    public void shutdown() {
+        try {
+            for (Socket socket : connections) {
+                socket.close();
+            }
+            serverSocket.close();
+            System.out.println(peerName + " is shutting down.");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Method to send a message to another peer (for demonstration)
+    public void sendMessage(String message, List<Peer> peers, String targetPeerName) {
+        for (Peer peer : peers) {
+            System.out.println("252 ---> " + peer.toString());
+            if (peer.getPeerName().equals(targetPeerName)) {
+                System.out.println(peerName + " sending message to " + targetPeerName + ": " + message);
+                // In a real application, you'd write the message to the peer's socket output
+                // stream
+            }
+        }
+>>>>>>> Stashed changes
     }
 
     @Override
     public String toString() {
+<<<<<<< Updated upstream
         return "Peer [peerName=" + peerName + ", port=" + port + ", connectedSockets=" + connectedSockets
                 + ", connectedPeerNames=" + connectedPeerNames + ", forwardedPeers=" + forwardedPeers + ", running="
                 + running + "]";
+=======
+        return "Peer{name='" + peerName + "', port=" + port + ", connections=" + connections.size() + "}";
+>>>>>>> Stashed changes
     }
 }
