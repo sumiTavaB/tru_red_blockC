@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.ServerSocket;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -15,19 +16,15 @@ public class NetworkCreator {
         int initialPort = 5000;
         try {
             BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-
-            // Input number of peers to create in the network
             System.out.println("Enter the number of peers you want to create in your network:");
             int n = Integer.parseInt(in.readLine());
             nodes = new String[n];
 
-            // Input the names of the nodes
             System.out.println("Enter the name of the nodes:");
             for (int i = 0; i < n; i++) {
                 nodes[i] = in.readLine();
             }
 
-            // Input the relationship between nodes
             System.out.println("State the node relationship for -> ");
             for (int i = 0; i < n; i++) {
                 System.out.print(nodes[i] + ": ");
@@ -50,60 +47,44 @@ public class NetworkCreator {
                 connections.put(nodes[i], connectionList);
             }
 
-            // Create peers and start their servers
+            // Start servers after establishing connections
             for (int i = 0; i < n; i++) {
-                final Peer peer = new Peer(nodes[i], initialPort);
+                int availablePort = getAvailablePort(initialPort); // Check for available port
+                System.out.println("Assigned port to peer " + nodes[i] + ": " + availablePort); // Debugging line
+                final Peer peer = new Peer(nodes[i], availablePort);
                 peers.add(peer);
-                initialPort += 500;
+                initialPort += 500; // Continue incrementing the port
 
-                // Start server in a separate thread for each peer
                 new Thread(() -> {
-                    try {
-                        peer.startServer();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    peer.start(); // Start the peer and listen for incoming connections
                 }).start();
             }
 
-            // Establish connections for each peer
+            // Establish connections
             for (int i = 0; i < n; i++) {
                 List<Integer> connectionList = connections.get(nodes[i]);
                 for (int connIndex : connectionList) {
-                    // try {
-                        Peer currentPeer = peers.get(i);
-                        Peer targetPeer = peers.get(connIndex);
-            
-                        // Ensure a connection is made only once
-                        if (!currentPeer.isConnectedTo(targetPeer)) {
-                            currentPeer.connectToPeer("localhost", targetPeer.getPort(), targetPeer.getPeerName());
-                            System.out.println(nodes[i] + " connected to " + nodes[connIndex]);
-                        }
-            
-                    // } catch (IOException e) {
-                    //     System.out.println("Error connecting " + nodes[i] + " to " + nodes[connIndex] + ": " + e.getMessage());
-                    // }
+                    Peer currentPeer = peers.get(i);
+                    Peer targetPeer = peers.get(connIndex);
+
+                    // Ensure a connection is made only once
+                    if (!currentPeer.isConnectedTo(targetPeer)) {
+                        currentPeer.connectToPeer("localhost", targetPeer.getPort(), targetPeer.getPeerName());
+                        targetPeer.connectToPeer("localhost", currentPeer.getPort(), currentPeer.getPeerName());
+                        System.out.println(nodes[i] + " connected to " + nodes[connIndex]);
+                    }
                 }
-            
-                // Print out the state of the current peer
                 System.out.println(peers.get(i).toString());
                 System.out.println("--------------------------------------");
             }
-            
-            
 
-            // Start communication for the first peer (Peer A)
+            // Communication for the first peer (Peer A)
             Peer peerA = peers.get(0); // Assuming Peer A is the first one
             BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
             String command;
 
-            // Remove the first peer (Peer A) only once before entering the loop
-            // if (!peers.isEmpty()) {
-            //     peers.remove(0);
-            // }
-
             while (true) {
-                System.out.print(peerA.peerName + " (you): ");
+                System.out.print(peerA.getPeerName() + " (you): ");
                 command = userInput.readLine();
                 if ("shutdown".equalsIgnoreCase(command)) {
                     peerA.shutdown();
@@ -112,12 +93,10 @@ public class NetworkCreator {
                 if (command.trim().isEmpty())
                     continue;
 
-                // Send message from Peer A to another peer
                 String targetPeerName;
                 System.out.print("Enter target peer name: ");
                 targetPeerName = userInput.readLine();
 
-                System.out.println("** --> " + peers);
                 peerA.sendMessage(command, peers, targetPeerName);
             }
 
@@ -125,5 +104,18 @@ public class NetworkCreator {
             System.out.println("An exception occurred: " + e.getMessage());
         }
     }
-}
 
+    // Helper method to get an available port
+    public static int getAvailablePort(int initialPort) {
+        int port = initialPort;
+        while (true) {
+            try (ServerSocket socket = new ServerSocket(port)) {
+                // Port is available
+                return port;
+            } catch (IOException e) {
+                // Port is already in use, try the next one
+                port++;
+            }
+        }
+    }
+}
