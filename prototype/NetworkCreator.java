@@ -10,6 +10,7 @@ import java.util.ArrayList;
 public class NetworkCreator {
     static Map<String, List<Integer>> connections = new HashMap<>();
     static List<Peer> peers = new ArrayList<>();
+    static Miner miner; // Reference to the miner
 
     public static void main(String[] args) {
         String[] nodes;
@@ -25,6 +26,11 @@ public class NetworkCreator {
                 nodes[i] = in.readLine();
             }
 
+            // Ask for miner node connection
+            System.out.println("Which peer should the Miner be connected to?");
+            String minerConnection = in.readLine();
+
+            // Initialize connections
             System.out.println("State the node relationship for -> ");
             for (int i = 0; i < n; i++) {
                 System.out.print(nodes[i] + ": ");
@@ -47,38 +53,47 @@ public class NetworkCreator {
                 connections.put(nodes[i], connectionList);
             }
 
-            // Start servers after establishing connections
+            // Initialize peers and miner
             for (int i = 0; i < n; i++) {
-                int availablePort = getAvailablePort(initialPort); // Check for available port
-                System.out.println("Assigned port to peer " + nodes[i] + ": " + availablePort); // Debugging line
-                final Peer peer = new Peer(nodes[i], availablePort);
+                int availablePort = getAvailablePort(initialPort);
+                System.out.println("Assigned port to peer " + nodes[i] + ": " + availablePort);
+                Peer peer = new Peer(nodes[i], availablePort);
                 peers.add(peer);
-                initialPort += 500; // Continue incrementing the port
+                initialPort += 500;
 
+                // If the current peer is the miner, initialize it
+                if (nodes[i].equals(minerConnection)) {
+                    miner = new Miner(nodes[i], availablePort);
+                    peers.add(miner); // Add miner to the peers list
+                    System.out.println("Miner initialized: " + nodes[i]);
+                }
+
+                // Start listening for connections
                 new Thread(() -> {
-                    peer.start(); // Start the peer and listen for incoming connections
+                    try {
+                        peer.start();
+                    } catch (Exception e) {
+                        System.err.println("Error starting peer " + peer.getPeerName() + ": " + e.getMessage());
+                    }
                 }).start();
             }
 
-            // Establish connections
+            // Establish connections between peers
             for (int i = 0; i < n; i++) {
                 List<Integer> connectionList = connections.get(nodes[i]);
                 for (int connIndex : connectionList) {
                     Peer currentPeer = peers.get(i);
                     Peer targetPeer = peers.get(connIndex);
 
-                    // Ensure a connection is made only once
                     if (!currentPeer.isConnectedTo(targetPeer)) {
                         currentPeer.connectToPeer("localhost", targetPeer.getPort(), targetPeer.getPeerName());
                         targetPeer.connectToPeer("localhost", currentPeer.getPort(), currentPeer.getPeerName());
                         System.out.println(nodes[i] + " connected to " + nodes[connIndex]);
                     }
                 }
-                System.out.println(peers.get(i).toString());
-                System.out.println("--------------------------------------");
             }
 
-            // Communication for the first peer (Peer A)
+            // Communication with Peer A (on terminal 1)
             Peer peerA = peers.get(0); // Assuming Peer A is the first one
             BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
             String command;
@@ -97,11 +112,35 @@ public class NetworkCreator {
                 System.out.print("Enter target peer name: ");
                 targetPeerName = userInput.readLine();
 
-                peerA.sendMessage(command, peers, targetPeerName);
+                // Send transaction to miner for verification
+                // Send transaction to miner for processing
+                System.out.println("---A STARTS---");
+                if (command.startsWith("send")) {
+                    String[] parts = command.split(" ");
+                    double amount = Double.parseDouble(parts[1]);
+                    Transaction transaction = new Transaction(peerA.getPeerName(), targetPeerName, amount);
+
+                    // Get the miner's name
+                    String minerName = miner.getPeerName(); // Get the name of the miner peer
+
+                    // Send the transaction message to the miner using peerA.sendMessage()
+                    // String transactionMessage = "transaction " + transaction.toString();
+
+                    // Use peerA to send the transaction message to the miner
+                    peerA.sendMessage(transaction, peers, minerName);
+                    System.out.println("---Transaction Sent to Miner for Processing---");
+                }
+                System.out.println("---A COMPLETES---");
+
+                // Send message to other peers (not miner)
+                // System.out.println("---A STARTS---");
+                // peerA.sendMessage(command, peers, targetPeerName);
+                // System.out.println("---A COMPLETES---");
             }
 
         } catch (Exception e) {
-            System.out.println("An exception occurred: " + e.getMessage());
+            System.err.println("An exception occurred: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -110,11 +149,9 @@ public class NetworkCreator {
         int port = initialPort;
         while (true) {
             try (ServerSocket socket = new ServerSocket(port)) {
-                // Port is available
-                return port;
+                return port; // Port is available
             } catch (IOException e) {
-                // Port is already in use, try the next one
-                port++;
+                port++; // Try next port if current one is occupied
             }
         }
     }
