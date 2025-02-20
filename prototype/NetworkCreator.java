@@ -27,8 +27,8 @@ public class NetworkCreator {
             }
 
             // Ask for miner node connection
-            System.out.println("Which peer should the Miner be connected to?");
-            String minerConnection = in.readLine();
+            // System.out.println("Which peer should the Miner be connected to?");
+            // String minerConnection = in.readLine();
 
             // Initialize connections
             System.out.println("State the node relationship for -> ");
@@ -62,11 +62,11 @@ public class NetworkCreator {
                 initialPort += 500;
 
                 // If the current peer is the miner, initialize it
-                if (nodes[i].equals(minerConnection)) {
-                    miner = new Miner(nodes[i], availablePort);
-                    peers.add(miner); // Add miner to the peers list
-                    System.out.println("Miner initialized: " + nodes[i]);
-                }
+                // if (nodes[i].equals(minerConnection)) {
+                //     miner = new Miner(nodes[i], availablePort);
+                //     peers.add(miner); // Add miner to the peers list
+                //     System.out.println("Miner initialized: " + nodes[i]);
+                // }
 
                 // Start listening for connections
                 new Thread(() -> {
@@ -81,8 +81,8 @@ public class NetworkCreator {
             // Establish connections between peers
             for (int i = 0; i < n; i++) {
                 List<Integer> connectionList = connections.get(nodes[i]);
-                for (int connIndex : connectionList) {
-                    Peer currentPeer = peers.get(i);
+                Peer currentPeer = peers.get(i);
+                for (int connIndex : connectionList) {                    
                     Peer targetPeer = peers.get(connIndex);
 
                     if (!currentPeer.isConnectedTo(targetPeer)) {
@@ -91,6 +91,7 @@ public class NetworkCreator {
                         System.out.println(nodes[i] + " connected to " + nodes[connIndex]);
                     }
                 }
+                System.out.println(" --> "+currentPeer.toString());
             }
 
             // Communication with Peer A (on terminal 1)
@@ -101,7 +102,7 @@ public class NetworkCreator {
             while (true) {
                 System.out.print(peerA.getPeerName() + " (you): ");
                 command = userInput.readLine();
-                if ("shutdown".equalsIgnoreCase(command)) {
+                if ("sdn".equalsIgnoreCase(command)) {
                     peerA.shutdown();
                     break;
                 }
@@ -121,14 +122,14 @@ public class NetworkCreator {
                     Transaction transaction = new Transaction(peerA.getPeerName(), targetPeerName, amount);
 
                     // Get the miner's name
-                    String minerName = miner.getPeerName(); // Get the name of the miner peer
+                    // String minerName = miner.getPeerName(); // Get the name of the miner peer
 
                     // Send the transaction message to the miner using peerA.sendMessage()
                     // String transactionMessage = "transaction " + transaction.toString();
 
                     // Use peerA to send the transaction message to the miner
-                    peerA.sendMessage(transaction, peers, minerName);
-                    System.out.println("---Transaction Sent to Miner for Processing---");
+                    peerA.sendMessage(transaction);
+                    // System.out.println("---Transaction Sent to Miner for Processing---");
                 }
                 System.out.println("---A COMPLETES---");
 

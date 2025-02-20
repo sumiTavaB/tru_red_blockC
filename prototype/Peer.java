@@ -1,6 +1,10 @@
 import java.io.*;
+import java.math.BigInteger;
 import java.net.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Peer implements Runnable {
@@ -9,8 +13,11 @@ public class Peer implements Runnable {
     private List<Socket> connectedSockets = new CopyOnWriteArrayList<>();
     private List<String> connectedPeerNames = new CopyOnWriteArrayList<>();
     private Set<String> forwardedPeers = new HashSet<>();
+    private Set<String> messageList = new HashSet<>();
     private boolean running = true;
     private Set<String> seenBlocks = new HashSet<>();
+    private static Map<Integer, String> portToPeerMap = new ConcurrentHashMap<>();
+
     // This map tracks the association between peer names and their connected
     // sockets
     private Map<String, Socket> peerSocketMap = new HashMap<>();
@@ -49,21 +56,52 @@ public class Peer implements Runnable {
         return connectedPeerNames;
     }
 
-    public void addBalance(double amount) {
+    public double addBalance(double amount) {
         balance += amount;
+        return balance;
     }
 
     public void deductBalance(double amount) {
         balance -= amount;
     }
 
-    public static Peer getPeerByName(String name) {
-        return peers.get(name);
+    public Peer getPeerByName(String peerName) {
+        for (Peer peer : connectedPeers) {
+            if (peer.getPeerName().equals(peerName)) {
+                return peer;
+            }
+        }
+        return null;
+    }
+    
+    public static String getMD5(String input) {
+        try {
+            // Create MessageDigest instance for MD5
+            MessageDigest md = MessageDigest.getInstance("MD5");
+
+            // Update the digest with the byte array of the input string
+            md.update(input.getBytes());
+
+            // Compute the hash
+            byte[] digest = md.digest();
+
+            // Convert byte array into a hexadecimal string
+            BigInteger number = new BigInteger(1, digest);
+            String hashText = number.toString(16);
+
+            // Ensure the hash has 32 characters by padding with leading zeros
+            while (hashText.length() < 32) {
+                hashText = "0" + hashText;
+            }
+            return hashText;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // Simulate receiving transactions
     public void receiveTransaction(Transaction transaction) {
-        System.out.println(peerName + " received transaction: " + transaction);
+        // System.out.println(peerName + " received transaction: " + transaction);
     }
 
     // Method to start the peer and listen for incoming connections
@@ -75,17 +113,18 @@ public class Peer implements Runnable {
     @Override
     public void run() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println(Thread.currentThread().getName() + " - " + peerName
-                    + " is waiting for a connection on port " + port);
+            System.out.println(Thread.currentThread().getName() + " - " + peerName + " is waiting for a connection on port " + port);
             while (running) {
                 Socket socket = serverSocket.accept();
-                System.out.println(Thread.currentThread().getName() + " - " + peerName + " connected to peer on port "
-                        + socket.getPort());
+                String connectedPeerName = portToPeerMap.getOrDefault(socket.getPort(), "Unknown");
+                // if(connectedPeerName.equals("Unknown")){
+                //     System.out.println("xxxxxxxxxxxxxxxxxxxxxx");
+                // }
+                System.out.println(Thread.currentThread().getName() + " - " + peerName + " connected to peer " + connectedPeerName + " on port " + socket.getPort());
                 handleConnection(socket);
             }
         } catch (IOException e) {
-            System.out.println(Thread.currentThread().getName() + " - " + peerName
-                    + ": Error while starting server on port " + port);
+            System.out.println(Thread.currentThread().getName() + " - " + peerName + ": Error while starting server on port " + port);
         }
     }
 
@@ -96,19 +135,22 @@ public class Peer implements Runnable {
         // Avoid adding 127.0.0.1 as a connected peer
         if (!peerName.equals("127.0.0.1")) {
             connectedPeerNames.add(peerName);
+            // Map the peer name to its corresponding socket
+            peerSocketMap.put(peerName, socket);
         }
 
-        // Map the peer name to its corresponding socket
-        peerSocketMap.put(peerName, socket);
+        // // Map the peer name to its corresponding socket
+        // peerSocketMap.put(peerName, socket);
 
         new Thread(new PeerHandler(socket, this)).start();
     }
 
+    
     public boolean isConnectedTo(Peer targetPeer) {
         for (Socket socket : connectedSockets) {
-            // Compare socket's remote address/port with the target peer's address/port
-            if (socket.getPort() == targetPeer.getPort() &&
-                    socket.getInetAddress().getHostName().equals(targetPeer.peerName)) {
+            InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+            if (remoteAddress.getPort() == targetPeer.getPort() &&
+                remoteAddress.getAddress().getHostAddress().equals("127.0.0.1")) {
                 return true; // Already connected to the target peer
             }
         }
@@ -116,157 +158,64 @@ public class Peer implements Runnable {
     }
 
     // Connect to another peer
-    public void connectToPeer(String host, int port, String peerName) {
-        try {
-            Socket socket = new Socket(host, port);
-            connectedSockets.add(socket);
-            connectedPeerNames.add(peerName); // Add the connected peer's name to the list
-            System.out.println(Thread.currentThread().getName() + " - " + this.peerName + " connected to " + peerName);
-            peerSocketMap.put(peerName, socket); // Add the socket to the map
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public synchronized boolean connectToPeer(String host, int port, String peerName) {
+        // Peer targetPeer = getPeerByName(peerName);
+        // if (targetPeer != null && isConnectedTo(targetPeer)) {
+            try {
+                Socket socket = new Socket(host, port);
+                connectedSockets.add(socket);
+                connectedPeerNames.add(peerName);
+                peerSocketMap.put(peerName, socket);
+                portToPeerMap.put(socket.getLocalPort(), this.peerName);
+                System.out.println(peerName + " connected successfully.");
+                return true;
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        // } else {
+        //     System.out.println("Already connected to peer: " + peerName);
+        // }
+        // return false;
     }
-
-    // // Method to send messages to the target peer
-    // public void sendMessage(String message, List<Peer> peers, String
-    // targetPeerName) {
-    // boolean found = false;
-    // for (Peer peer : peers) {
-    // if (peer.peerName.equals(targetPeerName)) {
-    // System.out.println(
-    // Thread.currentThread().getName() + " - " + peerName + " sending message to "
-    // + targetPeerName);
-
-    // // Format the message with the recipient and actual content
-    // String formattedMessage = peerName + " to " + targetPeerName + ": " +
-    // message;
-    // forwardedPeers.add(peerName);
-    // forwardMessage(formattedMessage, peer.peerName); // Pass null for
-    // previousSender when first
-    // found = true;
-    // break;
-    // }
-    // }
-    // if (!found) {
-    // System.out.println(
-    // Thread.currentThread().getName() + " - " + targetPeerName + " not found in
-    // connected peers.");
-    // }
-    // }
-
-    // Method to forward messages to connected peers
-    // private void forwardMessage(String message, String previousSender) {
-    // List<String> list = getConnectedPeerNames();
-    // System.out.println(peerName + " connected peers are: " + list.toString() + "
-    // -- " + previousSender);
-    // String[] parts = message.split(": ", 2);
-    // if (parts.length < 2)
-    // return;
-
-    // String[] participants = parts[0].split(" to ", 2);
-    // String sender = participants[0]; // A
-    // String receiver = participants[1]; // C
-
-    // if (!peerName.equals(receiver)) {
-    // for (int i = 0; i < list.size(); i++) {
-    // String peer = list.get(i);
-
-    // // Check if the peer is the intended recipient and is not the sender or
-    // previous
-    // // sender
-    // boolean shouldForward = !peer.equals(previousSender) &&
-    // !peer.equals(sender) &&
-    // !peer.equals("127.0.0.1") &&
-    // !peer.equals(peerName) &&
-    // !forwardedPeers.contains(peer);
-
-    // // If the peer should receive the message (based on the condition)
-    // if (shouldForward) {
-    // try {
-    // PrintWriter out = new PrintWriter(getOutputStream(peer), true);
-    // out.println(message); // Forward the message
-    // forwardedPeers.add(peer); // Mark the peer as forwarded
-    // } catch (IOException ex) {
-    // System.out.println(ex.toString());
-    // }
-    // }
-    // }
-
-    // System.out.println(Thread.currentThread().getName() + " - Forwarded peers for
-    // " + peerName + " is "
-    // + forwardedPeers.toString());
-    // } else {
-    // String actualMessage = parts.length > 1 ? parts[1] : "";
-    // System.out.println(peerName + " received message: " + actualMessage);
-    // shutdown();
-    // }
-    // }
 
     // Method to send messages to the target peer
-    public void sendMessage(Transaction transaction, List<Peer> peers, String targetPeerName) {
-        boolean found = false;
-        for (Peer peer : peers) {
-            if (peer.peerName.equals(targetPeerName)) {
-                System.out.println(
-                        Thread.currentThread().getName() + " - " + peerName + " sending message to " + targetPeerName);
-
-                // Format the message with the recipient and actual content
-                // String formattedMessage = peerName + " to " + targetPeerName + ": " +
-                // message;
-                forwardedPeers.add(peerName);
-                forwardMessage(transaction, peer.peerName); // Pass null for previousSender when first
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            System.out.println(
-                    Thread.currentThread().getName() + " - " + targetPeerName + " not found in connected peers.");
-        }
+    public void sendMessage(Transaction transaction) {
+        transaction.setHashid(getMD5(transaction.getTransactionData()));
+        System.out.println(peerName + "'s Balance: " + getBalance());
+        System.out.println("Message ID: "+transaction.getHashid());
+        forwardMessage(transaction);
     }
 
-    // Method to forward messages to connected peers
-    private void forwardMessage(Transaction transaction, String previousSender) {
-        List<String> list = getConnectedPeerNames();
-        System.out.println(peerName + " connected peers are: " + list.toString() + " -- " + previousSender);
-        String sender = transaction.getSender(); // A
-        String receiver = transaction.getRecipient(); // C
-
-        if (!peerName.equals(receiver)) {//IDENTIFY MINER
-            for (int i = 0; i < list.size(); i++) {
-                String peer = list.get(i);
-
-                // Check if the peer is the intended recipient and is not the sender or previous
-                // sender
-                boolean shouldForward = !peer.equals(previousSender) &&
-                        !peer.equals(sender) &&
-                        !peer.equals("127.0.0.1") &&
-                        !peer.equals(peerName) &&
-                        !forwardedPeers.contains(peer);
-
-                // If the peer should receive the message (based on the condition)
-                if (shouldForward) {
-                    try {
-                        // Create ObjectOutputStream to send the message
-                        ObjectOutputStream oos = new ObjectOutputStream(getOutputStream(peer));
-                        oos.writeObject(transaction); // Send the message object
-                        oos.flush();
-                        System.out.println("Sent message to " + peerName);
+    private void forwardMessage(Transaction transaction) {
+        List connectedPeers = getConnectedPeerNames();
+        String sender = transaction.getSender();
+        String receiver = transaction.getRecipient();
+        String previousSender = transaction.getPreviousSender();
+    
+        // Only forward to connected peers, not to the sender or previous sender.
+        if (!peerName.equals(receiver) && !forwardedPeers.contains(peerName)) {
+            for (Object peerObj : connectedPeers) { // Change String to Object
+                String peer = (String) peerObj; // Cast Object to String
+                boolean shouldForward = !peer.equals(sender);
+                boolean containsHash = messageList.contains(getMD5(transaction.toString()+peer)); //To find whether the message is being sent to them who already received the message
+                if (shouldForward && !containsHash) {
+                    try (ObjectOutputStream oos = new ObjectOutputStream(getOutputStream(peer))) {
+                        oos.writeObject(transaction);
+                        forwardedPeers.add(peer); // Mark as forwarded
+                        transaction.setPreviousSender(peerName);
+                        System.out.println(peerName + " forwarded message to " + peer + " (Previous sender: " + previousSender + ")");
                     } catch (IOException ex) {
-                        System.out.println(ex.toString());
+                        System.out.println(peerName + " received the transaction from " + previousSender);
                     }
                 }
             }
-
-            System.out.println(Thread.currentThread().getName() + " - Forwarded peers for " + peerName + " is "
-                    + forwardedPeers.toString());
         } else {
-            String actualMessage = parts.length > 1 ? parts[1] : "";
-            System.out.println(peerName + " received message: " + actualMessage);
-            shutdown();
+            System.out.println(peerName + " received the transaction.");
         }
     }
+    
+    
 
     // New function to get OutputStream for a peer's name
     private OutputStream getOutputStream(String peerName) throws IOException {
@@ -277,23 +226,27 @@ public class Peer implements Runnable {
             throw new IOException("Peer not found: " + peerName); // Handle the case where peer is not found
         }
     }
-
-    // Helper method to close connections and shutdown the peer
+    
     public void shutdown() {
         running = false;
-        try {
-            for (Socket socket : connectedSockets) {
+    
+        // Ensure all threads (if any) are stopped gracefully before closing connections.
+        for (Socket socket : connectedSockets) {
+            try {
                 socket.close();
+            } catch (IOException e) {
+                System.out.println("Error while shutting down connection to " + socket.getInetAddress());
             }
-        } catch (IOException e) {
-            System.out.println(
-                    Thread.currentThread().getName() + " - " + peerName + ": Error while shutting down connections.");
         }
-        System.out.println(Thread.currentThread().getName() + " - " + peerName + " is shutting down.");
+    
+        // Shutdown blockchain-related activities or transaction handling threads if needed.
+        System.out.println(peerName + " is shutting down.");
     }
+    
+    
 
     // Inner class to handle peer connection
-    private static class PeerHandler implements Runnable {
+    private class PeerHandler implements Runnable {
         private Socket socket;
         private Peer peer;
 
@@ -301,28 +254,107 @@ public class Peer implements Runnable {
             this.socket = socket;
             this.peer = peer;
         }
-
+    
         @Override
         public void run() {
-            try {
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                String message;
-                while ((message = in.readLine()) != null) {
-                    System.out.println(
-                            Thread.currentThread().getName() + " - " + peer.peerName + " received: " + message);
-                    peer.forwardMessage(message, peer.peerName); // Forward message to others
+            InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+            int senderPort = remoteAddress.getPort();
+            try (ObjectInputStream ois = new ObjectInputStream(socket.getInputStream())) {
+                Object receivedObject;
+                // Socket socket = serverSocket.accept();
+                String connectedPeerName = portToPeerMap.getOrDefault(senderPort, "Unknown");
+                while ((receivedObject = ois.readObject()) != null) {
+                    if (receivedObject instanceof Transaction) {
+                        Transaction transaction = (Transaction) receivedObject;
+                        messageList.add(getMD5(transaction.toString()+connectedPeerName));
+                        // String previousSender = getPeerNameFromSocket(socket);
+                        System.out.println(Thread.currentThread().getName() + " - " + peer.peerName + " received transaction from " + connectedPeerName);
+                        if (peer.peerName.equals(transaction.getRecipient())) {
+                            if (transaction.getAmount()!=-99) {
+                                System.out.println("Balance: " + getBalance());
+                                System.out.println("Received " + transaction.getAmount() + " from " + transaction.getSender() + " via " + connectedPeerName);
+                                System.out.println("Updated Balance: " + addBalance(transaction.getAmount()));                                
+                            } else {
+                                System.out.println(peerName + " received acknowledgement for " + transaction.getHashid());
+                            }
+
+                            // Send confirmation to the sender
+                            Transaction ack = new Transaction(peerName, transaction.getSender(), -99);
+                            ack.setHashid(getMD5(transaction.getTransactionData()));
+                            forwardMessage(ack);
+                            Thread.sleep(5000);
+                            peer.notifyPeersOfShutdown();
+                            peer.shutdown();
+                            break;
+                        } else {
+                            transaction.setPreviousSender(peer.peerName);
+                            peer.forwardMessage(transaction);
+                        }
+                    }
                 }
-            } catch (IOException e) {
-                System.out.println(Thread.currentThread().getName() + " - " + peer.peerName
-                        + ": Error handling incoming message.");
-                try {
-                    socket.close(); // Close the socket in case of an error
-                } catch (IOException ex) {
-                    ex.printStackTrace();
+            } catch (EOFException | SocketException e) {
+                System.out.println(Thread.currentThread().getName() + " - " + peer.peerName + ": Connection closed.");
+            } catch (IOException | ClassNotFoundException e) {
+                System.out.println(Thread.currentThread().getName() + " - " + peer.peerName + ": Error handling incoming message.");
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                System.out.println(Thread.currentThread().getName() + " - " + e);
+            }finally {
+                peer.removeConnection(socket);
+            }
+        }
+    
+        private String getPeerNameFromSocket(Socket socket) {
+            for (Map.Entry<String, Socket> entry : peer.peerSocketMap.entrySet()) {
+                Socket peerSocket = entry.getValue();
+                if (peerSocket.getInetAddress().equals(socket.getInetAddress()) && 
+                    peerSocket.getPort() == socket.getPort()) {
+                    return entry.getKey();
                 }
+            }
+            return "Unknown-" + socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
+        }
+
+    
+    }
+
+    public void notifyPeersOfShutdown() {
+        for (String peerName : connectedPeerNames) {
+            try (ObjectOutputStream oos = new ObjectOutputStream(getOutputStream(peerName))) {
+                oos.writeObject("SHUTDOWN");
+            } catch (IOException ex) {
+                System.out.println("Error notifying " + peerName + " of shutdown: " + ex.getMessage());
             }
         }
     }
+    
+    public void removeConnection(Socket socket) {
+        connectedSockets.remove(socket);
+        
+        // Use an array to hold the peer name to remove
+        final String[] peerNameToRemove = new String[1];
+        
+        peerSocketMap.entrySet().removeIf(entry -> {
+            if (entry.getValue().equals(socket)) {
+                peerNameToRemove[0] = entry.getKey();
+                return true;
+            }
+            return false;
+        });
+        
+        if (peerNameToRemove[0] != null) {
+            connectedPeerNames.remove(peerNameToRemove[0]);
+            forwardedPeers.remove(peerNameToRemove[0]);
+        }
+        
+        // Update other data structures if needed
+        connectedPeers.removeIf(peer -> peer.getPeerName().equals(peerNameToRemove[0]));
+    }
+    
+    
+    
+    
+    
 
     // Receive a block and process it
     public void receiveBlock(Block block) {
