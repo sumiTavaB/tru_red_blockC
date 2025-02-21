@@ -65,14 +65,14 @@ public class Peer implements Runnable {
         balance -= amount;
     }
 
-    public Peer getPeerByName(String peerName) {
-        for (Peer peer : connectedPeers) {
-            if (peer.getPeerName().equals(peerName)) {
-                return peer;
-            }
-        }
-        return null;
-    }
+    // public Peer getPeerByName(String peerName) {
+    //     for (Peer peer : connectedPeers) {
+    //         if (peer.getPeerName().equals(peerName)) {
+    //             return peer;
+    //         }
+    //     }
+    //     return null;
+    // }
     
     public static String getMD5(String input) {
         try {
@@ -178,9 +178,10 @@ public class Peer implements Runnable {
         // }
         // return false;
     }
-
+Transaction tx=new Transaction();
     // Method to send messages to the target peer
     public void sendMessage(Transaction transaction) {
+        tx=transaction;
         transaction.setHashid(getMD5(transaction.getTransactionData()));
         System.out.println(peerName + "'s Balance: " + getBalance());
         System.out.println("Message ID: "+transaction.getHashid());
@@ -270,17 +271,23 @@ public class Peer implements Runnable {
                         // String previousSender = getPeerNameFromSocket(socket);
                         System.out.println(Thread.currentThread().getName() + " - " + peer.peerName + " received transaction from " + connectedPeerName);
                         if (peer.peerName.equals(transaction.getRecipient())) {
+                            System.out.println("Received " + transaction.getAmount() + " from " + transaction.getSender() + " via " + connectedPeerName);
+                            // peer.notifyPeersOfShutdown();
+                            // peer.shutdown();
+                            // break;
                             if (transaction.getAmount()!=-99) {
                                 System.out.println("Balance: " + getBalance());
                                 System.out.println("Received " + transaction.getAmount() + " from " + transaction.getSender() + " via " + connectedPeerName);
                                 System.out.println("Updated Balance: " + addBalance(transaction.getAmount()));                                
                             } else {
                                 System.out.println(peerName + " received acknowledgement for " + transaction.getHashid());
+                                System.out.println(peerName + " Updated Balance: " + (getBalance()-tx.getAmount()));
                             }
 
                             // Send confirmation to the sender
                             Transaction ack = new Transaction(peerName, transaction.getSender(), -99);
-                            ack.setHashid(getMD5(transaction.getTransactionData()));
+                            ack.setHashid(getMD5(ack.getTransactionData()));                            
+                            System.out.println(ack.toString());
                             forwardMessage(ack);
                             Thread.sleep(5000);
                             peer.notifyPeersOfShutdown();
@@ -300,7 +307,7 @@ public class Peer implements Runnable {
             } catch (InterruptedException e) {
                 System.out.println(Thread.currentThread().getName() + " - " + e);
             }finally {
-                peer.removeConnection(socket);
+                // peer.removeConnection(socket);
             }
         }
     

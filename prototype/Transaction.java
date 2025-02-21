@@ -13,7 +13,11 @@ public class Transaction implements Serializable{
         this.recipient = recipient;
         this.amount = amount;
         this.timestamp = System.currentTimeMillis();
-    }    
+    }
+        
+    public Transaction() {
+        
+    }
 
     public void setPreviousSender(String previousSender) {
         this.previousSender = previousSender;
