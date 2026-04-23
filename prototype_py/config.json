@@ -1,0 +1,60 @@
+{
+  "simulation_parameters": {
+    "rounds": 50,
+    "log_file": "simulation_output.txt",
+    "time_scaling_ms": 200
+  },
+  "network_setup": {
+    "latency_file_path": "C:\\Users\\sumit\\Desktop\\tru_red_blockC\\latency\\Latency File.xlsx",
+    "topology_file_path": "path/to/your/topology.txt",
+    "authority_region": "West Europe"
+  },
+  "economic_parameters": {
+    "asset_weights": {
+      "GBP": 2.0,
+      "EUR": 1.5,
+      "USD": 1.2,
+      "CHF": 1.1,
+      "JPY": 0.009,
+      "CNY": 0.15,
+      "RUB": 0.013,
+      "INR": 0.012,
+      "AUD": 0.7,
+      "CAD": 0.8
+    },
+    "ai_parameters": {
+    "learning_rate": 0.1,
+    "discount_factor": 0.9,
+    "exploration_rate": 0.1,
+    "states": ["LOW_BUFFER", "MED_BUFFER", "HIGH_BUFFER"],
+    "actions": ["WAIT", "PROPOSE"]
+    },
+    "public_balance_range": [9000, 15000],
+    "transaction_amount_range": [10, 100],
+    "transaction_fee_range": [5, 15],
+    "minimum_fee": 5
+  },
+  "agent_parameters": {
+    "learning_rate": 0.1,
+    "discount_factor": 0.9,
+    "exploration_rate": 0.2
+  },
+  "consensus_parameters": {
+    "authority_timeout_range": [40, 60],
+    "verifier_tx_target_range": [5, 10],
+    "block_selection_weights": {
+      "alpha_generosity": 0.3,
+      "beta_throughput": 0.7
+    },
+    "sync_poll_interval": 5,
+    "sync_batch_size": 10,
+    "max_future_buffer_size": 50000
+  },
+  "federated_authority": {
+    "consortium_size": 7,
+    "fault_tolerance_f": 2,
+    "ingress_layer_size": 4,
+    "ingress_quorum": 3,
+    "shamir_threshold": 5
+  }
+}
