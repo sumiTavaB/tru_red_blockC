@@ -1,0 +1,19 @@
+# Environments
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.class
+
+# Output logs and temporary files
+*.log
+simulation_output.txt
+newop.txt
+OUTPUT*.txt
+
+# Executables
+*.exe

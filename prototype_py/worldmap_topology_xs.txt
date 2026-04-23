@@ -1,0 +1,16 @@
+Enter number of nodes in the network: 9
+Enter node labels (comma-separated): A,V1,V2,V3,P1,P2,P3,P4,P5
+Define node relationship (neighbors comma-separated, or blank):
+A: V1,V2,V3
+V1: A,P1,P2
+V2: A,P3,P4
+V3: A,P5
+
+P1: V1,P2
+P2: V1,P1,P3
+P3: V2,P2,P4
+P4: V2,P3,P5
+P5: V3,P4
+
+Mention which node is Authority (one): A
+Mention Verifiers (comma-separated): V1,V2,V3
